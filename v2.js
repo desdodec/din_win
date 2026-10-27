@@ -29,8 +29,7 @@ async function showJoin(){
 async function createRoom(){
  try{
  const name=qs("#new-name").value.trim();if(!name)throw Error("Enter your name.");
- const created=await query(db.from("dinner_rooms").insert({host_id:user.id} ).select("id").single());
- room=created.id;await query(db.rpc("join_dinner_room",{p_room:room,p_name:name}));
+ room=await query(db.rpc("create_dinner_room",{p_name:name}));
  history.replaceState(null,"","?room="+room);await activate();
  }catch(e){out(e.message,true)}
 }
