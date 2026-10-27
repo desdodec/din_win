@@ -38,7 +38,7 @@ async function refresh(silent=false){
  const [r,g]=await Promise.all([query(db.from("dinner_rooms").select("*").eq("id",room).single()),query(db.from("dinner_guests").select("*").eq("room_id",room).order("joined_at"))]);
  roomData=r;members=g;me=g.find(x=>x.user_id===user.id);
  if(!me)throw Error("You are not in this room. Reopen the invitation link.");
- if(!silent||!dirty)render();
+ if(!silent||(!dirty && !document.activeElement?.matches("#work input")))render();
  if(!silent)out("Shared room connected. Changes sync automatically about every 5 seconds.");
 }
 function agreement(){
