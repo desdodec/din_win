@@ -1,23 +1,40 @@
-# DinWin 🍽️
+# DinWin V2 — shared London dinner decisions
 
-A responsive dinner decider for London. Guests choose their favourite cuisines; the app identifies unanimous favourites or the closest compromise, then finds matching restaurants near a London postcode or neighbourhood.
+**Live site:** https://dinnerwinner.netlify.app/  
+**GitHub:** https://github.com/desdodec/din_win
 
-## Deploy with Netlify
+## Supabase setup (required)
 
-1. In Netlify connect GitHub repository `desdodec/din_win`, choosing `main`.
-2. Use the default deploy settings; `netlify.toml` sets the publish directory and functions.
-3. Sign up for a free Geoapify account at https://myprojects.geoapify.com/ and copy its API key.
-4. Under **Netlify → Project configuration → Environment variables** add key `GEOAPIFY_API_KEY` and paste the Geoapify key as its value. Give it Functions scope (or All scopes).
-5. Trigger a new production deployment in **Deploys**. Open https://dinnerwinner.netlify.app/ and test `Soho`.
+1. Visit https://supabase.com/dashboard and create a free Supabase project. Keep the database password safely stored.
+2. Open **SQL Editor** → **New query**. Copy and run the **entire contents** of [supabase/setup.sql](supabase/setup.sql). This creates tables, membership security policies, and the secure room-creation/joining functions.
+3. Open **Authentication → Providers → Anonymous** (or **Sign In / Providers**) and enable **Anonymous sign-ins**. Guests do not need email accounts.
+4. Open **Project Settings → API** or **Connect** and copy the **Project URL** and **anon / publishable key**.
+5. In **Netlify → Project configuration → Environment variables** create:
+   - `SUPABASE_URL` = project URL, e.g. `https://example.supabase.co`
+   - `SUPABASE_ANON_KEY` = project's public anon / publishable key. **Never use the secret / service_role key.**
+   - `GEOAPIFY_API_KEY` = your existing Geoapify key.
+   - `TFL_APP_KEY` = optional TfL Unified API key, requested at https://api-portal.tfl.gov.uk/ (anonymous calls may work at lower quotas).
+6. Deploy the latest GitHub commit to Netlify. Netlify uses `netlify.toml` and requires no build command.
 
-No Google API key, Google billing or .env file is needed. You can remove `GOOGLE_PLACES_API_KEY` from Netlify.
+**Testing across browsers:** Open the site in your normal browser and create a room. Copy the invitation link to another browser/device, join with a different name, select **at least five cuisines each**, and save. Choices sync every five seconds. The room owner can set a search area and retrieve restaurant recommendations.
 
-## What the data can and cannot do
+## Cuisine matching
 
-Restaurant results are fetched from Geoapify Places (based largely on OpenStreetMap data). The server first geocodes the London area or postcode, then searches for cuisine-tagged restaurants within 2.5 km. Results are ordered by matching cuisine count, then proximity. Phone numbers and restaurant websites appear when the dataset has them; Google Maps links let guests inspect ratings and reviews separately. Geoapify **does not supply verified Google star ratings or consistent £ price levels**, so DinWin doesn't fabricate them.
+All guests must save at least five acceptable cuisines. DinWin only considers a cuisine unanimously supported when every guest has voted. If there is no unanimous match, it displays the highest-supported cuisines and asks users to modify their ballots voluntarily — it does not label majority support as consent or force a cuisine. The host can search restaurants only after unanimous agreement.
 
-Cuisines that lack detailed classifications in the source data may return fewer results. The 3,000-requests/day free allowance is shared across Geoapify endpoints; each dinner search typically uses two requests. For public use consider API quotas, abuse prevention, and caching. Keep the API key in Netlify Functions; do not commit it to GitHub.
+## Travel
 
-## MVP scope
+Each person can save a London starting postcode or station. The host can compare actual TfL Journey Planner estimates to six central London hubs (Waterloo, London Bridge, King's Cross, Victoria, Oxford Circus and Liverpool Street). The hubs are ranked by the worst travel time among guests when all journeys resolve. TfL data can be unavailable for ambiguous origins, interruptions or API quotas; missing journeys are excluded from ranking. These are public transport estimates, not geometrical centroid distances. You may register for a free TfL developer key.
 
-This is same-device voting, with selections saved locally in the browser. For separate-device group invitations, shared server-side sessions would be the next feature.
+**V2 limitations:** The host manually selects the preferred area after viewing journey comparisons; the app does not automatically optimise every possible London meeting point. Geoapify doesn't supply reliable star ratings or pound price bands, so the app links to maps/reviews instead of making up scores. Restaurant shortlist is currently generated by the host; not persisted across browsers. Guest choices and origins are persisted in Supabase; the room host and members can view them. Anonymous sign-in identities are tied to browser sessions: clearing browser data loses the ability to edit that same guest entry. Room links act as invitations — anyone with the link can join. A limit of 50 guests applies in the database. For public promotion add bot prevention, rate limiting, room expiry and data cleanup.
+
+## Structure
+
+- `index.html` — shared room experience
+- `v2.js` — ballot logic and Supabase client
+- `supabase/setup.sql` — Supabase schema and RLS policies
+- `netlify/functions/config.mjs` — sends browser-safe public Supabase configuration
+- `netlify/functions/restaurants.mjs` — server-side Geoapify search
+- `netlify/functions/journeys.mjs` — TfL journey comparison
+
+No secret keys should be committed to GitHub.
