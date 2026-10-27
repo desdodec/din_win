@@ -1,36 +1,23 @@
 # DinWin 🍽️
 
-A responsive group dinner decider for London. Each guest selects any number of preferred cuisines, and DinWin identifies unanimous choices or suggests a majority-led compromise. Search a London area or postcode to see highly rated restaurant recommendations, price band, address, phone number, website and directions.
+A responsive dinner decider for London. Guests choose their favourite cuisines; the app identifies unanimous favourites or the closest compromise, then finds matching restaurants near a London postcode or neighbourhood.
 
-## Deploy to Netlify
+## Deploy with Netlify
 
-1. In Netlify, choose **Add new project → Import an existing project** and connect `desdodec/din_win`.
-2. Use the repository default settings (publish directory `.`; no build command). The included `netlify.toml` configures serverless functions.
-3. In Google Cloud Console, create/select a project, enable **Places API (New)** and enable billing. Create an API key for this API.
-4. In Netlify → **Project configuration → Environment variables**, add `GOOGLE_PLACES_API_KEY` with your key as the value. Redeploy.
-5. Open the Netlify URL. The serverless function keeps your key out of the browser.
+1. In Netlify connect GitHub repository `desdodec/din_win`, choosing `main`.
+2. Use the default deploy settings; `netlify.toml` sets the publish directory and functions.
+3. Sign up for a free Geoapify account at https://myprojects.geoapify.com/ and copy its API key.
+4. Under **Netlify → Project configuration → Environment variables** add key `GEOAPIFY_API_KEY` and paste the Geoapify key as its value. Give it Functions scope (or All scopes).
+5. Trigger a new production deployment in **Deploys**. Open https://dinnerwinner.netlify.app/ and test `Soho`.
 
-**Important:** Restrict the Google API key to Places API (New). Because requests are made from a serverless function, do not apply browser HTTP referrer restrictions. Consider a cloud budget/quotas, bot protection, and server-side rate limiting before public promotion. Every search calls Google Places once per selected cuisine (maximum 5). Google may charge for the requested fields. Google Places data availability varies: some results have no phone, website, price band or rating.
+No Google API key, Google billing or .env file is needed. You can remove `GOOGLE_PLACES_API_KEY` from Netlify.
 
-## Local development
+## What the data can and cannot do
 
-Install the Netlify CLI (`npm install -g netlify-cli`), set `GOOGLE_PLACES_API_KEY` in a local `.env` file, and run `netlify dev`. Open the URL shown by the CLI. Never commit `.env`.
+Restaurant results are fetched from Geoapify Places (based largely on OpenStreetMap data). The server first geocodes the London area or postcode, then searches for cuisine-tagged restaurants within 2.5 km. Results are ordered by matching cuisine count, then proximity. Phone numbers and restaurant websites appear when the dataset has them; Google Maps links let guests inspect ratings and reviews separately. Geoapify **does not supply verified Google star ratings or consistent £ price levels**, so DinWin doesn't fabricate them.
 
-## Behaviour
+Cuisines that lack detailed classifications in the source data may return fewer results. The 3,000-requests/day free allowance is shared across Geoapify endpoints; each dinner search typically uses two requests. For public use consider API quotas, abuse prevention, and caching. Keep the API key in Netlify Functions; do not commit it to GitHub.
 
-- Starts with three guests; add up to 50.
-- Select multiple cuisines per guest, with automatic local saving in that browser.
-- Shows cuisines selected by everyone; if no unanimous overlap, shows up to five cuisines with the highest vote counts and vote fractions.
-- Searches those top five cuisines, merges duplicate Google Places results, then ranks by rating, review count and how many searched cuisines matched.
-- No login or database is required. **This is a shared-screen voting MVP**: each person votes on the same device. Separate-device voting via shareable links would require session storage/server infrastructure.
-- Restaurant information is provided by **Google Places**, not a manually curated list. Price level is displayed as £–££££ when available, not an exact per-person bill.
+## MVP scope
 
-## Files
-
-- `index.html` — fully self-contained responsive app.
-- `netlify/functions/restaurants.mjs` — secure restaurant search proxy.
-- `netlify.toml` — deployment settings.
-
-## Notes
-
-Google Places Text Search is a relevance search, not a strict geographical boundary. Always inspect the address for the target area; results may extend beyond a specified postcode. Further improvements could include radius filtering, location geocoding, shareable invitations, budget preferences and hard dietary constraints.
+This is same-device voting, with selections saved locally in the browser. For separate-device group invitations, shared server-side sessions would be the next feature.
