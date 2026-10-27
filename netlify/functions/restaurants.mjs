@@ -17,7 +17,7 @@ export const handler=async event=>{
   let body;try{body=JSON.parse(event.body||"{}");}catch{return reply(400,{error:"Invalid request."});}
   const location=typeof body.location==="string"?body.location.trim():"";
   const cuisines=Array.isArray(body.cuisines)?[...new Set(body.cuisines)].filter(c=>Object.hasOwn(CATEGORIES,c)).slice(0,5):[];
-  if(!location||location.length>90||/[^\\p{L}\\p{N}\\s,.'-]/u.test(location)||!cuisines.length)return reply(400,{error:"Enter a valid London area or postcode and select cuisines."});
+  if(!location||location.length>90||/[^\p{L}\p{N}\s,.'-]/u.test(location)||!cuisines.length)return reply(400,{error:"Enter a valid London area or postcode and select cuisines."});
   try{
     const geocode=new URL("https://api.geoapify.com/v1/geocode/search");
     geocode.searchParams.set("text",location+", London, United Kingdom");
