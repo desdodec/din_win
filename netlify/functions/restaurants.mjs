@@ -19,7 +19,7 @@ export const handler=async event=>{
         body:JSON.stringify({textQuery:cuisine+" restaurants in "+location+", London, UK",languageCode:"en",regionCode:"GB",pageSize:20})
       });
       const json=await response.json();
-      if(!response.ok)throw new Error(json?.error?.message||"Restaurant provider is unavailable.");
+      if(!response.ok){const status=json?.error?.status||"";const message=json?.error?.message||"";let reason="Google Places request failed.";if(response.status===403){reason=/billing/i.test(message)?"Google Cloud billing is not enabled for this project.":/not enabled|has not been used|SERVICE_DISABLED/i.test(message)?"Places API (New) is not enabled in your Google Cloud project.":/API key|API_KEY|credential|restricted|permission/i.test(message)?"The Google API key is invalid or restricted incorrectly. Check its API and application restrictions.":"Google rejected the Places API request (403). Check Places API (New), billing and key restrictions.";}else if(response.status===400){reason="Google rejected the Places search request (400).";}else if(response.status===429){reason="Google Places quota or rate limit exceeded.";}else if(response.status>=500){reason="Google Places is temporarily unavailable.";}const err=new Error(reason);err.providerCode=response.status;throw err;}
       return {cuisine,places:json.places||[]};
     }));
     const byId=new Map();
@@ -31,5 +31,5 @@ export const handler=async event=>{
     }
     const restaurants=[...byId.values()].sort((a,b)=>score(b)-score(a)).slice(0,30);
     return reply(200,{restaurants});
-  }catch(error){console.error("Places lookup failed",error);return reply(502,{error:"Restaurant data could not be loaded. Check your Places API configuration and try again."});}
+  }catch(error){console.error("Places lookup failed",error);return reply(502,{error:error.message||"Restaurant lookup failed."});}
 };
