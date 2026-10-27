@@ -38,7 +38,7 @@ async function refresh(silent=false){
  const [r,g]=await Promise.all([query(db.from("dinner_rooms").select("*").eq("id",room).single()),query(db.from("dinner_guests").select("*").eq("room_id",room).order("joined_at"))]);
  roomData=r;members=g;me=g.find(x=>x.user_id===user.id);
  if(!me)throw Error("You are not in this room. Reopen the invitation link.");
- if(!silent||(!dirty && !document.activeElement?.matches("#work input")))render();
+ if(!silent||(!dirty && !document.activeElement?.matches("#work input, #work button")))render();
  if(!silent)out("Shared room connected. Changes sync automatically about every 5 seconds.");
 }
 function agreement(){
@@ -67,13 +67,13 @@ function render(){
  root.append(all);
  const locations=el("section",undefined,"panel");locations.append(el("h3","London meeting area and public transport"));
  locations.append(el("p","Each guest enters a starting postcode or station. TfL estimates are calculated for candidate dinner hubs where available; no travel time is inferred from straight-line distance.","muted"));
- const area=field("Your departure station or postcode",me.origin||"",100);locations.append(area);
- locations.append(btn("Save my starting point",async()=>{try{await query(db.from("dinner_guests").update({origin:area.value.trim()}).eq("room_id",room).eq("user_id",user.id));await refresh();}catch(e){out(e.message,true)}}));
+ const area=field("Your departure station or postcode",me.origin||"",100);area.oninput=()=>{dirty=true};locations.append(area);
+ locations.append(btn("Save my starting point",async()=>{try{await query(db.from("dinner_guests").update({origin:area.value.trim()}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();out("Starting point saved.");}catch(e){out(e.message,true)}}));
  for(const g of members)locations.append(el("p",g.guest_name+": "+(g.origin||"not set"),"muted"));
  const host=roomData.host_id===user.id;
- if(host){const chosen=field("Preferred area for restaurant search",roomData.location||"",90);locations.append(el("h4","Host: restaurant search area"));locations.append(chosen,btn("Save area",async()=>{try{await query(db.from("dinner_rooms").update({location:chosen.value.trim()}).eq("id",room));await refresh()}catch(e){out(e.message,true)}}));
+ if(host){const chosen=field("Preferred area for restaurant search",roomData.location||"",90);chosen.oninput=()=>{dirty=true};locations.append(el("h4","Host: restaurant search area"));locations.append(chosen,btn("Save area",async()=>{try{const saved=await query(db.from("dinner_rooms").update({location:chosen.value.trim()}).eq("id",room).select("id,location").single());dirty=false;await refresh();out("Search area saved: "+saved.location)}catch(e){out(e.message,true)}}));
  locations.append(btn("Compare TfL journeys to central hubs",compareTravel,"secondary"));
- const go=btn("Search restaurants here",searchRestaurants);go.disabled=!roomData.location||!a.common.length;locations.append(go);
+ const go=btn("Search restaurants here",searchRestaurants);go.disabled=!roomData.location||!a.common.length;locations.append(go);if(go.disabled)locations.append(el("p",!roomData.location?"Search unavailable: enter an area (for example Soho) and click Save area.":"Search unavailable: every guest must complete their ballot and agree on at least one cuisine.","warning"));
  }else locations.append(el("p","The host chooses the final restaurant-search area after the group has voted.","muted"));
  root.append(locations);
  const travel=box("travel");root.append(travel);
