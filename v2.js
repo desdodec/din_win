@@ -1,7 +1,7 @@
 const C=["Italian","Japanese","Indian","Thai","Chinese","Korean","Vietnamese","Mexican","Spanish","French","Greek","Turkish","Lebanese","Middle Eastern","Mediterranean","British","American","Caribbean","Ethiopian","Portuguese","Seafood","Vegetarian","Vegan","Pizza","Steakhouse"];
 const qs=x=>document.querySelector(x), el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-let db,user,room=null,me=null,members=[],roomData=null,clock=null,lastSearch=[];
+let db,user,room=null,me=null,members=[],roomData=null,clock=null,lastSearch=[],dirty=false;
 const out=(s,bad=false)=>{qs("#notice").textContent=s;qs("#notice").className=bad?"error":"muted"};
 const param=new URLSearchParams(location.search), requested=param.get("room");
 function btn(label,fn,cls=""){const b=el("button",label,"btn "+cls);b.type="button";b.onclick=fn;return b;}
@@ -38,7 +38,7 @@ async function refresh(silent=false){
  const [r,g]=await Promise.all([query(db.from("dinner_rooms").select("*").eq("id",room).single()),query(db.from("dinner_guests").select("*").eq("room_id",room).order("joined_at"))]);
  roomData=r;members=g;me=g.find(x=>x.user_id===user.id);
  if(!me)throw Error("You are not in this room. Reopen the invitation link.");
- render();
+ if(!silent||!dirty)render();
  if(!silent)out("Shared room connected. Changes sync automatically about every 5 seconds.");
 }
 function agreement(){
@@ -55,9 +55,9 @@ function render(){
  root.append(el("p","Invite friends using the link. Everyone votes on their own device. Guests currently in room: "+members.length,"muted"));
  const my=el("section",undefined,"panel");my.append(el("h3","Your ballot — "+me.guest_name));
  my.append(el("p","Choose at least 5 cuisines you'd happily eat. Up to 3 favourites can be marked after voting.","muted"));
- const chips=el("div",undefined,"chips");let picks=[...me.cuisines];for(const c of C){const ch=btn(c,()=>{picks=picks.includes(c)?picks.filter(x=>x!==c):[...picks,c];ch.classList.toggle("selected");save.disabled=picks.length<5;count.textContent=picks.length+" cuisines selected";},"chip"+(picks.includes(c)?" selected":""));chips.append(ch);}my.append(chips);
+ const chips=el("div",undefined,"chips");let picks=[...me.cuisines];for(const c of C){const ch=btn(c,()=>{picks=picks.includes(c)?picks.filter(x=>x!==c):[...picks,c];dirty=true;ch.classList.toggle("selected");save.disabled=picks.length<5;count.textContent=picks.length+" cuisines selected";},"chip"+(picks.includes(c)?" selected":""));chips.append(ch);}my.append(chips);
  const count=el("p",picks.length+" cuisines selected","muted");my.append(count);
- const save=btn("Save my choices",async()=>{try{save.disabled=true;await query(db.from("dinner_guests").update({cuisines:picks}).eq("room_id",room).eq("user_id",user.id));await refresh();}catch(e){out(e.message,true);save.disabled=false}});save.disabled=picks.length<5;my.append(save);root.append(my);
+ const save=btn("Save my choices",async()=>{try{save.disabled=true;await query(db.from("dinner_guests").update({cuisines:picks}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();}catch(e){out(e.message,true);save.disabled=false}});save.disabled=picks.length<5;my.append(save);root.append(my);
  const all=el("section",undefined,"panel");all.append(el("h3","Group votes"));
  for(const m of members)all.append(el("p",m.guest_name+" — "+(m.cuisines.length>=5?m.cuisines.length+" choices saved":"still choosing")));
  const a=agreement();all.append(el("h3","Cuisine consensus"));
