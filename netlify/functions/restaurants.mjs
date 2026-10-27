@@ -22,8 +22,8 @@ export const handler=async event=>{
     const geocode=new URL("https://api.geoapify.com/v1/geocode/search");
     geocode.searchParams.set("text",location+", London, United Kingdom");
     geocode.searchParams.set("format","json");geocode.searchParams.set("filter","countrycode:gb");geocode.searchParams.set("limit","5");
-    const locations=await geoFetch(geocode,key);
-    const centre=(locations.results||[]).find(withinLondon);
+    let locations=await geoFetch(geocode,key);\n    if(!(locations.results||[]).some(withinLondon)){const retry=new URL("https://api.geoapify.com/v1/geocode/search");retry.searchParams.set("text",location);retry.searchParams.set("format","json");retry.searchParams.set("bias","proximity:-0.134,51.513");retry.searchParams.set("filter","rect:-0.52,51.28,0.34,51.70");retry.searchParams.set("limit","5");locations=await geoFetch(retry,key);}
+    const postcode=/^(?:[A-Z]{1,2}[0-9][A-Z0-9]?\\s*[0-9][A-Z]{2})$/i.test(location);\n    const candidates=(locations.results||[]).filter(withinLondon);\n    const preferred=candidates.find(r=>postcode?Boolean(r.postcode):((r.city||r.county||"").toLowerCase().includes("london")||((r.formatted||"").toLowerCase().includes("london"))));\n    const centre=preferred||candidates[0];
     if(!centre)return reply(400,{error:"That area could not be found in London. Try a London postcode such as W1D 3QF."});
     const categorySet=[...new Set(cuisines.flatMap(c=>CATEGORIES[c]))];
     const url=new URL("https://api.geoapify.com/v2/places");
