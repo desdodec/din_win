@@ -1,7 +1,7 @@
 const C=["Italian","Japanese","Indian","Thai","Chinese","Korean","Vietnamese","Mexican","Spanish","French","Greek","Turkish","Lebanese","Middle Eastern","Mediterranean","British","American","Caribbean","Ethiopian","Portuguese","Seafood","Vegetarian","Vegan","Pizza","Steakhouse"];
 const qs=x=>document.querySelector(x), el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-let db,user,room=null,me=null,members=[],roomData=null,clock=null,lastSearch=[],dirty=false;
+let db,user,room=null,me=null,members=[],roomData=null,clock=null,lastSearch=[],dirty=false,openedBallot=false;
 const out=(s,bad=false)=>{qs("#notice").textContent=s;qs("#notice").className=bad?"error":"muted"};
 const param=new URLSearchParams(location.search), requested=param.get("room");
 function btn(label,fn,cls=""){const b=el("button",label,"btn "+cls);b.type="button";b.onclick=fn;return b;}
@@ -49,36 +49,37 @@ function agreement(){
  return {complete,common,ranked,voted:voted.length};
 }
 function render(){
- const root=qs("#work");root.replaceChildren();root.append(el("h2","Dinner room"));
+ const root=qs("#work");const scroll=window.scrollY;root.replaceChildren();root.append(el("h2","Your dinner"));
  const invite=location.origin+location.pathname+"?room="+room;
  const share=el("div",undefined,"bar");share.append(el("span",invite,"share-url"),btn("Copy invite",()=>navigator.clipboard.writeText(invite)));root.append(share);
- root.append(el("p","Invite friends using the link. Everyone votes on their own device. Guests currently in room: "+members.length,"muted"));
- const my=el("section",undefined,"panel");my.append(el("h3","Your ballot — "+me.guest_name));
+ root.append(el("p",members.length+" guests joined · "+members.filter(x=>x.cuisines.length>=5).length+" have voted","muted"));
+ const my=el("details",undefined,"panel ballot");my.open=openedBallot||me.cuisines.length<5;my.addEventListener("toggle",()=>{openedBallot=my.open});my.append(el("summary","Your cuisine choices — "+me.guest_name));
  my.append(el("p","Choose at least 5 cuisines you'd happily eat. Up to 3 favourites can be marked after voting.","muted"));
  const chips=el("div",undefined,"chips");let picks=[...me.cuisines];for(const c of C){const ch=btn(c,()=>{picks=picks.includes(c)?picks.filter(x=>x!==c):[...picks,c];dirty=true;ch.classList.toggle("selected");save.disabled=picks.length<5;count.textContent=picks.length+" cuisines selected";},"chip"+(picks.includes(c)?" selected":""));chips.append(ch);}my.append(chips);
  const count=el("p",picks.length+" cuisines selected","muted");my.append(count);
  const save=btn("Save my choices",async()=>{try{save.disabled=true;await query(db.from("dinner_guests").update({cuisines:picks}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();}catch(e){out(e.message,true);save.disabled=false}});save.disabled=picks.length<5;my.append(save);root.append(my);
- const all=el("section",undefined,"panel");all.append(el("h3","Group votes"));
+ const all=el("section",undefined,"panel");all.append(el("h3","Step 1 · Agree what to eat"));
  for(const m of members)all.append(el("p",m.guest_name+" — "+(m.cuisines.length>=5?m.cuisines.length+" choices saved":"still choosing")));
  const a=agreement();all.append(el("h3","Cuisine consensus"));
  if(!a.complete)all.append(el("p","Waiting for everyone to select at least 5 cuisines. "+a.voted+"/"+members.length+" complete.","muted"));
  else if(a.common.length)all.append(el("p","Everybody accepts: "+a.common.join(", "),"success"));
  else {all.append(el("p","No unanimous overlap yet. This is a compromise round: discuss the highest-supported cuisines, and ask guests to add any they can accept. Nothing is forced.","warning"));all.append(el("p",a.ranked.slice(0,7).map(([c,n])=>c+" ("+n+"/"+members.length+")").join(" · ")));}
  root.append(all);
- const locations=el("section",undefined,"panel");locations.append(el("h3","London meeting area and public transport"));
- locations.append(el("p","Each guest enters a starting postcode or station. TfL estimates are calculated for candidate dinner hubs where available; no travel time is inferred from straight-line distance.","muted"));
+ const locations=el("section",undefined,"panel");locations.append(el("h3","Step 2 · Choose a meeting area"));
+ locations.append(el("p","Each guest enters a starting station or postcode. The organiser can compare Tube and rail journeys.","muted"));
  const area=field("Your departure station or postcode",me.origin||"",100);area.oninput=()=>{dirty=true};locations.append(area);
  locations.append(btn("Save my starting point",async()=>{try{await query(db.from("dinner_guests").update({origin:area.value.trim()}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();out("Starting point saved.");}catch(e){out(e.message,true)}}));
  for(const g of members)locations.append(el("p",g.guest_name+": "+(g.origin||"not set"),"muted"));
  const host=roomData.host_id===user.id;
- if(host){const chosen=field("Preferred area for restaurant search",roomData.location||"",90);chosen.oninput=()=>{dirty=true};locations.append(el("h4","Host: restaurant search area"));locations.append(chosen,btn("Save area",async()=>{try{const saved=await query(db.from("dinner_rooms").update({location:chosen.value.trim()}).eq("id",room).select("id,location").single());dirty=false;await refresh();out("Search area saved: "+saved.location)}catch(e){out(e.message,true)}}));
+ if(host){const chosen=field("Search neighbourhood or postcode (e.g. Soho, Covent Garden, W1D)",roomData.location||"",90);chosen.oninput=()=>{dirty=true};locations.append(el("h4","Where shall we eat?"));locations.append(chosen);
  locations.append(btn("Compare TfL journeys to central hubs",compareTravel,"secondary"));
- const go=btn("Search restaurants here",searchRestaurants);go.disabled=!roomData.location||!a.common.length;locations.append(go);if(go.disabled)locations.append(el("p",!roomData.location?"Search unavailable: enter an area (for example Soho) and click Save area.":"Search unavailable: every guest must complete their ballot and agree on at least one cuisine.","warning"));
+ const go=btn("Find restaurants →",async()=>{try{const val=chosen.value.trim();if(!val)throw Error("Enter a London area or postcode.");if(!agreement().common.length)throw Error("Everyone must agree on a cuisine first.");await query(db.from("dinner_rooms").update({location:val}).eq("id",room));roomData.location=val;dirty=false;await searchRestaurants();}catch(e){out(e.message,true)}});locations.append(go);if(!a.common.length)locations.append(el("p","Restaurant search becomes available once everyone shares at least one cuisine.","warning"));
  }else locations.append(el("p","The host chooses the final restaurant-search area after the group has voted.","muted"));
  root.append(locations);
  const travel=box("travel");root.append(travel);
- const rest=box("restaurants");root.append(rest);
+ const rest=box("restaurants");rest.className="panel";rest.append(el("h3","Step 3 · Restaurant shortlist"));root.append(rest);
  if(lastSearch.length)renderRestaurants(lastSearch);
+ if(Math.abs(window.scrollY-scroll)>80)window.scrollTo({top:scroll,behavior:"instant"});
 }
 async function compareTravel(){
  const starts=members.filter(g=>g.origin?.trim());if(starts.length!==members.length){out("Ask every guest to save a starting postcode or station first.",true);return;}
@@ -87,6 +88,6 @@ async function compareTravel(){
  target.append(el("p","Live TfL journey estimates can vary by time and service disruption. Hubs with missing journeys are not ranked.","muted"));}catch(e){target.replaceChildren();out(e.message,true)}
 }
 async function searchRestaurants(){const cuisines=agreement().common;if(!cuisines.length){out("No unanimous cuisine yet. Complete a compromise round first.",true);return;}out("Looking up restaurants…");
- try{const response=await fetch("/.netlify/functions/restaurants",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({location:roomData.location,cuisines:cuisines.slice(0,5)})});const d=await response.json();if(!response.ok)throw Error(d.error);lastSearch=d.restaurants||[];renderRestaurants(lastSearch);out(lastSearch.length+" restaurants returned.");}catch(e){out(e.message,true)}}
-function renderRestaurants(items){const target=qs("#restaurants");if(!target)return;target.replaceChildren(el("h3","Nearby restaurant shortlist"));if(!items.length){target.append(el("p","No results yet."));return;}for(const x of items){const card=el("article",undefined,"restaurant");card.append(el("h4",x.name),el("p",(x.address||"")+" — "+x.matchedCuisines.join(", "),"muted"));if(x.phone)card.append(el("p",x.phone));for(const [label,url] of [["Website",x.website],["View map & reviews",x.mapsUrl]]){if(!url)continue;try{const parsed=new URL(url);if(parsed.protocol!=="https:"&&parsed.protocol!=="http:")continue;const link=el("a",label+" ↗");link.href=parsed.href;link.target="_blank";link.rel="noopener noreferrer";card.append(link,el("span","  "));}catch{}}target.append(card)}}
+ try{const response=await fetch("/.netlify/functions/restaurants",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({location:roomData.location,cuisines:cuisines.slice(0,5)})});const d=await response.json();if(!response.ok)throw Error(d.error);lastSearch=d.restaurants||[];renderRestaurants(lastSearch);qs("#restaurants")?.scrollIntoView({behavior:"smooth",block:"start"});out(lastSearch.length+" restaurants returned.");}catch(e){out(e.message,true)}}
+function renderRestaurants(items){const target=qs("#restaurants");if(!target)return;target.replaceChildren(el("h3","Step 3 · Nearby restaurants"));if(!items.length){target.append(el("p","No results yet."));return;}for(const x of items){const card=el("article",undefined,"restaurant");card.append(el("h4",x.name),el("p",(x.address||"")+" — "+x.matchedCuisines.join(", "),"muted"));if(x.phone)card.append(el("p",x.phone));for(const [label,url] of [["Website",x.website],["View map & reviews",x.mapsUrl]]){if(!url)continue;try{const parsed=new URL(url);if(parsed.protocol!=="https:"&&parsed.protocol!=="http:")continue;const link=el("a",label+" ↗");link.href=parsed.href;link.target="_blank";link.rel="noopener noreferrer";card.append(link,el("span","  "));}catch{}}target.append(card)}}
 qs("#create").onclick=createRoom;init();
