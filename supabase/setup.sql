@@ -55,3 +55,17 @@ grant select,update on public.dinner_guests to authenticated;
 
 alter table public.dinner_guests add column if not exists origin text not null default '';
 alter table public.dinner_guests add constraint origin_length check (char_length(origin)<=100);
+
+-- Atomic host creation and joining, avoiding an RLS visibility gap.
+create or replace function public.create_dinner_room(p_name text)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare v_room uuid;
+begin
+ if auth.uid() is null then raise exception 'Please sign in first'; end if;
+ if char_length(trim(p_name)) not between 1 and 40 then raise exception 'Enter a name (1-40 characters)'; end if;
+ insert into public.dinner_rooms(host_id) values(auth.uid()) returning id into v_room;
+ insert into public.dinner_guests(room_id,user_id,guest_name) values(v_room,auth.uid(),trim(p_name));
+ return v_room;
+end $$;
+revoke all on function public.create_dinner_room(text) from public, anon;
+grant execute on function public.create_dinner_room(text) to authenticated;
