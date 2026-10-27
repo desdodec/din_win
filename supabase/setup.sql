@@ -69,3 +69,6 @@ begin
 end $$;
 revoke all on function public.create_dinner_room(text) from public, anon;
 grant execute on function public.create_dinner_room(text) to authenticated;
+
+-- Guest destination preference
+alter table public.dinner_guests add column if not exists destination_area text not null default '';
