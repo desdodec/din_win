@@ -22,12 +22,15 @@ export const handler=async event=>{
  try{
  // Limited candidate hubs and concurrency to respect TfL's free anonymous API quota.
  const hubs=[];
- for(const [name,stop] of HUBS){
-  const journeys=[];
-  for(const guest of origins){
-   const t=await minutes(guest.from,stop);
-   journeys.push({name:guest.name,minutes:t});
-  }
+ // Limit the comparison to six combinations at once; avoid long serial waits.
+ const tasks=HUBS.flatMap(([name,stop])=>origins.map(g=>({name,stop,g})));
+ const computed=[];
+ for(let i=0;i<tasks.length;i+=6){
+  const batch=tasks.slice(i,i+6);
+  computed.push(...await Promise.all(batch.map(async t=>({hub:t.name,name:t.g.name,minutes:await minutes(t.g.from,t.stop)}))));
+ }
+ for(const [name] of HUBS){
+  const journeys=computed.filter(t=>t.hub===name).map(t=>({name:t.name,minutes:t.minutes}));
   const valid=journeys.every(j=>j.minutes!==null);
   hubs.push({name,journeys,worst:valid?Math.max(...journeys.map(j=>j.minutes)):null});
  }
