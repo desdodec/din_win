@@ -70,6 +70,7 @@ function render(){
  const area=field("Your departure station or postcode",me.origin||"",100);area.oninput=()=>{dirty=true};locations.append(area);
  locations.append(btn("Save my starting point",async()=>{try{await query(db.from("dinner_guests").update({origin:area.value.trim()}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();out("Starting point saved.");}catch(e){out(e.message,true)}}));
  for(const g of members)locations.append(el("p",g.guest_name+": "+(g.origin||"not set"),"muted"));
+ const pref=field("Preferred dinner area",me.destination_area||"",90);pref.oninput=()=>{dirty=true};locations.append(el("h4","Your preferred dinner area"),pref);locations.append(btn("Save preferred area",async()=>{try{await query(db.from("dinner_guests").update({destination_area:pref.value.trim()}).eq("room_id",room).eq("user_id",user.id));dirty=false;await refresh();out("Preferred area saved.")}catch(e){out(e.message,true)}}));for(const g of members){if(g.destination_area)locations.append(el("p",g.guest_name+" prefers "+g.destination_area,"muted"));}
  const host=roomData.host_id===user.id;
  if(host){const chosen=field("Search neighbourhood or postcode (e.g. Soho, Covent Garden, W1D)",roomData.location||"",90);chosen.oninput=()=>{dirty=true};locations.append(el("h4","Where shall we eat?"));locations.append(chosen);
  locations.append(btn("Compare TfL journeys to central hubs",compareTravel,"secondary"));
