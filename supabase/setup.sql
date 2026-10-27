@@ -52,3 +52,6 @@ grant execute on function public.join_dinner_room(uuid,text) to authenticated;
 grant usage on schema public to authenticated;
 grant select,insert,update on public.dinner_rooms to authenticated;
 grant select,update on public.dinner_guests to authenticated;
+
+alter table public.dinner_guests add column if not exists origin text not null default '';
+alter table public.dinner_guests add constraint origin_length check (char_length(origin)<=100);
